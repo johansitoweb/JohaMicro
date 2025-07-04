@@ -1,0 +1,25 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Error Interno del Servidor</title>
+    <link rel="stylesheet" href="/static/css/style.css">
+</head>
+<body>
+    <header>
+        <h1>500 - Error Interno del Servidor</h1>
+    </header>
+    <main>
+        <p>¡Ups! Algo salió mal de nuestro lado.</p>
+        <p>Estamos trabajando para solucionarlo. Por favor, inténtalo de nuevo más tarde.</p>
+        {% if exception %}
+            <details>
+                <summary>Detalles del Error (Solo para depuración)</summary>
+                <pre>{{ exception }}</pre>
+            </details>
+        {% endif %}
+        <p><a href="/">Volver al inicio</a></p>
+    </main>
+</body>
+</html>

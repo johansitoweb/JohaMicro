@@ -1,0 +1,30 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{ title }}</title>
+    <link rel="stylesheet" href="/static/css/style.css">
+</head>
+<body>
+    <header>
+        <h1>{{ heading }}</h1>
+    </header>
+    <main>
+        <p>¡Bienvenido a nuestro microframework **PicoWeb**!</p>
+        <p>Este es un ejemplo de cómo usar plantillas Jinja2 y servir archivos estáticos.</p>
+        <p>Tu nombre es: **{{ name | default('Invitado') }}**</p>
+        <img src="/static/img/picoweb_logo.png" alt="PicoWeb Logo" style="max-width: 150px; display: block; margin: 20px 0;">
+        <p>Prueba las siguientes rutas:</p>
+        <ul>
+            <li><a href="/saludo/Mundo">/saludo/Mundo</a></li>
+            <li><a href="/api/data">/api/data</a></li>
+            <li><a href="/non-existent-page">/non-existent-page</a> (para ver el 404)</li>
+            <li><a href="/trigger-error">/trigger-error</a> (para ver el 500)</li>
+        </ul>
+    </main>
+    <footer>
+        <p>&copy; 2025 PicoWeb</p>
+    </footer>
+</body>
+</html>
