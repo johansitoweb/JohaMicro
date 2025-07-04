@@ -1,0 +1,120 @@
+# .github/workflows/deploy.yml
+name: Deploy PicoWeb to AWS ECS
+
+on:
+  push:
+    branches:
+      - main 
+
+env:
+  AWS_REGION: us-east-1 
+  ECR_REPOSITORY: picoweb 
+  ECS_CLUSTER_NAME: picoweb-cluster 
+  ECS_SERVICE_NAME: picoweb-service 
+  ECS_TASK_DEFINITION: terraform/picoweb-task-definition.json 
+
+jobs:
+  deploy:
+    name: Deploy
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+
+    - name: Configure AWS credentials
+      uses: aws-actions/configure-aws-credentials@v4
+      with:
+        aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+        aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+        aws-region: ${{ env.AWS_REGION }}
+
+    - name: Login to Amazon ECR
+      id: login-ecr
+      uses: aws-actions/amazon-ecr-login@v2
+
+    - name: Build, tag, and push image to Amazon ECR
+      id: build-image
+      env:
+        ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+        IMAGE_TAG: latest 
+      run: |
+        # Construye la imagen Docker
+        docker build -t $ECR_REPOSITORY:$IMAGE_TAG .
+        # Etiqueta la imagen con la URL del repositorio ECR
+        docker tag $ECR_REPOSITORY:$IMAGE_TAG $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
+        # Empuja la imagen a ECR
+        docker push $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
+        echo "image_uri=$ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG" >> $GITHUB_OUTPUT
+
+    - name: Render Amazon ECS task definition
+      id: render-task-def
+      run: |
+        # Necesitamos la ARN de la imagen de ECR de la tarea.
+        # Por ahora, la pasaremos directamente. En un entorno real,
+        # esto podría recuperarse de la salida de Terraform o de la URL del repo.
+        # Aquí estamos creando un archivo JSON basado en la salida de Terraform.
+        # Este paso es simplificado. En un caso real, podrías querer
+        # obtener la ARN de la task_definition directamente de Terraform
+        # y pasarla aquí. O más simple, actualizar solo la imagen en la task_definition existente.
+
+        # Este JSON DEBE coincidir con la estructura 'container_definitions' en main.tf
+        # La idea es que Terraform define la Task Definition, y GitHub Actions la actualiza
+        # con la nueva imagen.
+        echo "Creating task definition file for update..."
+        cat <<EOF > task-definition.json
+        [
+          {
+            "name": "${{ env.ECR_REPOSITORY }}",
+            "image": "${{ steps.build-image.outputs.image_uri }}",
+            "cpu": ${{ vars.CPU_UNITS || 256 }}, # Usar GITHUB_VARS si se definen, sino default
+            "memory": ${{ vars.MEMORY_MIB || 512 }},
+            "essential": true,
+            "portMappings": [
+              {
+                "containerPort": ${{ vars.APP_PORT || 8000 }},
+                "hostPort": ${{ vars.APP_PORT || 8000 }}
+              }
+            ],
+            "logConfiguration": {
+              "logDriver": "awslogs",
+              "options": {
+                "awslogs-group": "/ecs/${{ env.ECR_REPOSITORY }}-app",
+                "awslogs-region": "${{ env.AWS_REGION }}",
+                "awslogs-stream-prefix": "ecs"
+              }
+            }
+          }
+        ]
+        EOF
+        # Puedes copiar la definición de tarea completa de AWS después de que Terraform la cree
+        # y luego solo modificar la imagen en un paso anterior para que este paso sea más limpio.
+        # O usar 'aws ecs register-task-definition' directamente con la imagen actualizada.
+        # Para este ejemplo, estamos generando un fragmento y asumiendo la mayor parte está en Terraform.
+        # La mejor práctica es que Terraform cree la Task Definition y solo la versión de la imagen
+        # sea lo que se actualice en la CI/CD.
+
+    - name: Register new ECS task definition
+      id: register-task-def
+      
+      run: |
+        TASK_DEF_ARN=$(aws ecs register-task-definition \
+          --cli-input-json file://task-definition.json \
+          --family ${{ env.ECR_REPOSITORY }}-task \
+          --cpu ${{ vars.CPU_UNITS || 256 }} \
+          --memory ${{ vars.MEMORY_MIB || 512 }} \
+          --network-mode awsvpc \
+          --requires-compatibilities FARGATE \
+          --execution-role-arn arn:aws:iam::${{ github.event.repository.owner.id }}:${{ env.ECS_CLUSTER_NAME }}-ecs-task-execution-role \
+          --task-role-arn arn:aws:iam::${{ github.event.repository.owner.id }}:${{ env.ECS_CLUSTER_NAME }}-ecs-task-role \
+          | jq -r '.taskDefinition.taskDefinitionArn')
+        echo "New task definition ARN: $TASK_DEF_ARN"
+        echo "task_definition_arn=$TASK_DEF_ARN" >> $GITHUB_OUTPUT
+
+    - name: Update ECS service
+      run: |
+        aws ecs update-service \
+          --cluster ${{ env.ECS_CLUSTER_NAME }} \
+          --service ${{ env.ECS_SERVICE_NAME }} \
+          --task-definition ${{ steps.register-task-def.outputs.task_definition_arn }} \
+          --force-new-deployment

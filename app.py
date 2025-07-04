@@ -2,23 +2,23 @@ from picoweb import PicoWeb, jsonify, redirect, Response, render_template
 
 app = PicoWeb()
 
-# --- Configuración Inicial ---
-app.setup_templates("templates") # Configura Jinja2 para usar el directorio 'templates'
+
+app.setup_templates("templates") 
 app.static("/static/", "static") 
 
-# --- Middlewares ---
+
 def logger_middleware(request, next_handler, **kwargs):
     """
     Middleware simple para registrar la ruta y el método de cada solicitud.
     """
     print(f"[{request.method}] {request.path}")
-    response = next_handler(request, **kwargs) # Llama al siguiente manejador en la cadena
+    response = next_handler(request, **kwargs) 
     print(f"[{response.status}] {request.path}")
     return response
 
 app.use_middleware(logger_middleware)
 
-# --- Manejadores de Errores Personalizados ---
+
 @app.errorhandler(404)
 def page_not_found(exception=None):
     """
@@ -31,11 +31,11 @@ def internal_server_error(exception=None):
     """
     Manejador para errores 500 (Error interno del servidor).
     """
-    # En producción, no deberías exponer 'exception' directamente al usuario
+   
     return render_template("error_500.html", title="Error Interno", exception=exception), "500 Internal Server Error"
 
 
-# --- Rutas de la Aplicación ---
+
 @app.route("/")
 def index(request):
     """
