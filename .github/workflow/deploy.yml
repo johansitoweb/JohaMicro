@@ -1,5 +1,5 @@
 # .github/workflows/deploy.yml
-name: Deploy PicoWeb to AWS ECS
+name: Deploy JohaMixcro to AWS ECS
 
 on:
   push:
